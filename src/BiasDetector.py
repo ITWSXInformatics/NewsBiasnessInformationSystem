@@ -1,6 +1,6 @@
 from pathlib import Path
 from gensim.models.ldamodel import  LdaModel
-# from gensim.models.ldamulticore import LdaMulticore
+from gensim.models.ldamulticore import LdaMulticore
 import gensim.corpora as corpora
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelBinarizer
@@ -17,12 +17,13 @@ import pickle
 import pdb
 import os
 import json
+from nltk.util import ngrams
 
 # Constants
 STOPWORDS = {
     'say', 'not', 'like', 'go', "be", "have", "s", #original
     "and", "when", "where", "who", "let", "look", "time", "use", "him", "her",
-    "she", "he"
+    "she", "he", "on", "at"
 }
 
 
@@ -80,11 +81,11 @@ def predict_bias(model, topic_vecs, labels):
 
     # get accuracy from the training data, just to look at whether this even seems feasible...
     # 0.3 f1 score on the training, using 12123 documents. not great results for now.
-    print("Topic Vectors:")
-    print(topic_vecs)
-    print("Compare truth to prediction (truth, prediction)")
-    # for i in range(0, len(labels)):
-    #     print("({}, {})".format(labels[i], pred_labels[i]))
+    #print("Topic Vectors:")
+    #print(topic_vecs)
+    #print("Compare truth to prediction (truth, prediction)")
+    #for i in range(0, len(labels)):
+    #    print("({}, {})".format(labels[i], pred_labels[i]))
     #print("Truth Labels:")
     #print(labels)
     #print("Predicted Labels:")
@@ -105,7 +106,7 @@ def train_model(documents, onehot_enc, labels):
     """
     # Configuration variables, how many topics will we attempt to extract from
     # our documents.
-    num_topics = 400
+    num_topics = 50
 
     # Start
     print('number of documents: ', len(documents))
@@ -118,11 +119,11 @@ def train_model(documents, onehot_enc, labels):
     print("starting LDA model")
     # plug into LDA model.
     # this can take a while with larger number of documents
-    lda = LdaModel(num_topics=num_topics,
+    lda = LdaMulticore(num_topics=num_topics,
                    id2word=id2word,
                    corpus=corpus,
-                   passes=50,
-                   eval_every=1)
+                   passes=2,
+                       workers=2)
     print("topics:")
     for topic in lda.show_topics(num_topics=num_topics,
                                  num_words=20):  # print_topics():
@@ -152,7 +153,7 @@ def train_model(documents, onehot_enc, labels):
 
     # train basic logistic regression
     model = LogisticRegression(class_weight='balanced').fit(topic_vecs, labels)
-    with open('trained_logreg_model.pkl', 'wb') as f:
+    with open('../saved_models/trained_logreg_model.pkl', 'wb') as f:
         pickle.dump(model, f)
 
     return model, topic_vecs
@@ -182,7 +183,7 @@ def load_articles(articles_dir, mbfc_labels):
     dates = [f for f in Path(articles_dir).iterdir() if f.is_dir()]
 
     with nlp.disable_pipes("ner"):
-        for date in dates[:30]:  # parsing documents can take a while.
+        for date in dates[:60]:  # parsing documents can take a while.
             smalltest_dir = (articles_dir / date).resolve()
 
             publishers = [f for f in smalltest_dir.iterdir() if f.is_dir()]
@@ -197,25 +198,28 @@ def load_articles(articles_dir, mbfc_labels):
                     if str(this_publisher) not in mbfc_labels.keys():
                         continue
                     else:
-                        text = articles[0].read_text()
+                        for article in articles:
+                            text = article.read_text()
 
-                        # save raw text of first document, just for looking at results later
-                        if not testing_text_raw:
-                            testing_text_raw = text
+                            # save raw text of first document, just for looking at results later
+                            if not testing_text_raw:
+                                testing_text_raw = text
 
-                        text = text.replace("\n", " ")
+                            text = text.replace("\n", " ")
 
-                        # preprocessing text
-                        lem_text = [token.lemma_.lower() for token in nlp(text)
-                                    if not token.is_stop
-                                    and not token.is_punct
-                                    and not token.is_space
-                                    and not token.lemma_.lower() in STOPWORDS
-                                    and not token.pos_ == 'SYM'
-                                    and not token.pos_ == 'NUM']
-                        # print(lem_text)
-                        documents.append(lem_text)
-                        labels.append(mbfc_labels[this_publisher])
+                            # preprocessing text
+                            lem_text = [token.lemma_.lower() for token in nlp(text)
+                                        if not token.is_stop
+                                        and not token.is_punct
+                                        and not token.is_space
+                                        and not token.lemma_.lower() in STOPWORDS
+                                        and not token.pos_ == 'SYM'
+                                        and not token.pos_ == 'NUM']
+
+                            lem_text += ["_".join(w) for w in ngrams(lem_text, 2)]
+                            # print(lem_text)
+                            documents.append(lem_text)
+                            labels.append(mbfc_labels[this_publisher])
     return documents, labels
 
 
