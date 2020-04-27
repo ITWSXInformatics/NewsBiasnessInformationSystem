@@ -12,6 +12,7 @@ import argparse
 import json
 #import sqlite3
 from sklearn.linear_model import SGDClassifier, LogisticRegression
+from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import f1_score
 import pickle
 import pdb
@@ -106,14 +107,14 @@ def train_model(documents, onehot_enc, labels):
     """
     # Configuration variables, how many topics will we attempt to extract from
     # our documents.
-    num_topics = 50
+    num_topics = 100
 
     # Start
     print('number of documents: ', len(documents))
 
     id2word = corpora.Dictionary(documents)
     print(len(id2word.token2id))
-    id2word.filter_extremes(no_below=5, no_above=0.4)
+    id2word.filter_extremes(no_below=50, no_above=0.6)
     print(len(id2word.token2id))
 
     corpus = [id2word.doc2bow(doc) for doc in documents]
@@ -125,13 +126,13 @@ def train_model(documents, onehot_enc, labels):
     lda = LdaMulticore(num_topics=num_topics,
                    id2word=id2word,
                    corpus=corpus,
-                   passes=2,
+                   passes=5,
                        workers=2)
     print("topics:")
     for topic in lda.show_topics(num_topics=num_topics,
                                  num_words=20):  # print_topics():
         print(topic)
-    lda.save("trained_ldamodel_filterextremes")
+    lda.save("trained_ldamodel_nobelow15_noabove60")
 
     # print("getting topics for testing document")
     # topic_prediction = lda.get_document_topics(bow=corpus[0])
@@ -155,8 +156,21 @@ def train_model(documents, onehot_enc, labels):
         topic_vecs.append(topic_vec)
 
     # train basic logistic regression
-    model = LogisticRegression(class_weight='balanced').fit(topic_vecs, labels)
-    with open('../saved_models/trained_logreg_model.pkl', 'wb') as f:
+    model = ExtraTreesClassifier(
+        random_state=None,
+        bootstrap=True,
+        min_impurity_split=None,
+        min_samples_leaf=1,
+        criterion='gini',
+        min_impurity_decrease=0.0,
+        max_features=40,
+        n_estimators=110,
+        min_samples_split=5,
+        n_jobs=2,
+        class_weight='balanced',
+        max_depth=None
+    ).fit(topic_vecs, labels)
+    with open('../saved_models/extratrees_lda1560.pkl', 'wb') as f:
         pickle.dump(model, f)
 
     return model, topic_vecs
