@@ -65,10 +65,10 @@ def get_json_prediction_output(nlp, lda_model, classifier_model, input_raw_text)
         relevant_topics = lda_model.get_document_topics(doc_as_corpus)
         output_overall_topics.append([topic[0] for topic in relevant_topics])
         for topic in relevant_topics:
-            top_term_ids = lda_model.get_topic_terms(topic[0])
+            top_term_ids = lda_model.get_topic_terms(topic[0], topn=20)
             top_terms = [lda_model.id2word[tup[0]] for tup in top_term_ids]
             relevant_topic_details.append((topic[0], top_terms))
-            print("==>",(topic[0], top_terms))
+            #print("==>",(topic[0], top_terms))
 
         for word_tuple in doc_as_corpus:
             word_topics = lda_model.get_term_topics(word_tuple[0])
@@ -82,6 +82,8 @@ def get_json_prediction_output(nlp, lda_model, classifier_model, input_raw_text)
                    'relevant_topic_terms': relevant_topic_details,
                    'per_word_topics': output_word_topics}
     print(output_dict)
+    return output_dict
+    #print(output_dict)
 
 def main():
 
@@ -226,7 +228,25 @@ def main():
     for l in set(mbfc_labels.values()):
         print(l, ':', labels.count(l)/len(labels))
 
-    print(get_json_prediction_output(nlp, lda, GS, DUMMY_TEXT))
+    pred_output_res = get_json_prediction_output(nlp, lda, GS, DUMMY_TEXT)
+    print("----------")
+    print(DUMMY_TEXT)
+    print("overall prediction: {}".format(pred_output_res['pred_label']))
+    print("key topics relevant to input text: ---")
+    topic_ids = []
+    for terms in pred_output_res['relevant_topic_terms']:
+        print(terms)
+        topic_ids.append(terms[0])
+    print("---")
+    print("words matching topics in input text: ---")
+    for id in topic_ids:
+        relevant_words = []
+        for word_topic in pred_output_res['per_word_topics']:
+            if id in word_topic[1]:
+                relevant_words.append(word_topic[0])
+        print(id, ':', relevant_words)
+    print("---")
+
 
 if __name__ == "__main__":
     main()
