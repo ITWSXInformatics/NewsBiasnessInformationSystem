@@ -17,6 +17,46 @@ STOPWORDS = {
     "she", "he"
 }
 
+def get_json_prediction_output(nlp, lda_model, classifier_model, input_raw_text):
+
+    text = input_raw_text.replace("\n", " ")
+
+    # # preprocessing text
+    lem_text =  [token.lemma_.lower() for token in nlp(text)
+                if not token.is_stop
+                and not token.is_punct
+                and not token.is_space
+                and not token.lemma_.lower() in STOPWORDS
+                and not token.pos_ == 'SYM'
+                and not token.pos_ == 'NUM']
+
+    lem_text += ["_".join(w) for w in ngrams(lem_text, 2)]
+    documents = [lem_text]
+
+    corpus = [lda_model.id2word.doc2bow(doc) for doc in documents]
+    topic_vecs = []
+    output_overall_topics = []
+    output_word_topics = []
+    for doc_as_corpus in corpus:
+        top_topics = lda_model.get_document_topics(doc_as_corpus,
+                                             minimum_probability=0)
+        topic_vec = [top_topics[i][1] for i in range(lda_model.num_topics)]
+        topic_vecs.append(topic_vec)
+
+        output_overall_topics.append(lda_model.get_document_topics(doc_as_corpus))
+
+        for word_tuple in doc_as_corpus:
+            word_topics = lda_model.get_term_topics(word_tuple[0])
+            if word_topics:
+                output_word_topics.append((lda_model.id2word[word_tuple[0]], word_topics))
+
+    output_pred_label = classifier_model.predict(topic_vecs)[0]
+
+    output_dict = {'pred_label': output_pred_label,
+                   'overall_doc_topics': output_overall_topics,
+                   'per_word_topics': output_word_topics}
+    print(output_dict)
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -63,7 +103,7 @@ def main():
     raw_texts = []
     # with nlp.disable_pipes("ner"):
     if True:
-        for date in dates[:60]:
+        for date in dates[60:70]:
             print(len(documents), len(labels))
             smalltest_dir = (articles_dir / date).resolve()
 
