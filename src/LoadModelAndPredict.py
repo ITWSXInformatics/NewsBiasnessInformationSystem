@@ -11,6 +11,24 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.externals import joblib
 import json
 
+DUMMY_TEXT = """
+Russia has appointed the US actor Steven Seagal as a special envoy to improve ties with the United States.
+
+Seagal was granted Russian citizenship in 2016 and has praised President Putin as a great world leader.
+
+Born in the US, the martial arts star gained international fame for roles in the 1980s and '90s like Under Siege.
+
+He is also one of the Hollywood stars accused by several women of sexual misconduct in the wake of the #MeToo campaign, which he has denied.
+
+The Russian foreign ministry made the announcement on its official Facebook page, saying the unpaid position was similar to that of a United Nations' goodwill ambassador and Seagal would promote US-Russia relations "in the humanitarian sphere".
+
+The Flight of Fury star, still popular with Russian audiences, has recently defended the Russian government over claims that it meddled in 2016 US elections.
+
+The 66-year-old has called President Putin "one of the great living world leaders", and when Seagal was granted Russian citizenship, said he hoped it would be a symbol of how relations between Moscow and Washington were starting to improve.
+
+Seagal was also granted Serbian citizenship in 2016, following several visits to the Balkan country.
+"""
+
 STOPWORDS = {
     'say', 'not', 'like', 'go', "be", "have", "s", #original
     "and", "when", "where", "who", "let", "look", "time", "use", "him", "her",
@@ -37,23 +55,31 @@ def get_json_prediction_output(nlp, lda_model, classifier_model, input_raw_text)
     topic_vecs = []
     output_overall_topics = []
     output_word_topics = []
+    relevant_topic_details = []
     for doc_as_corpus in corpus:
         top_topics = lda_model.get_document_topics(doc_as_corpus,
                                              minimum_probability=0)
         topic_vec = [top_topics[i][1] for i in range(lda_model.num_topics)]
         topic_vecs.append(topic_vec)
 
-        output_overall_topics.append(lda_model.get_document_topics(doc_as_corpus))
+        relevant_topics = lda_model.get_document_topics(doc_as_corpus)
+        output_overall_topics.append([topic[0] for topic in relevant_topics])
+        for topic in relevant_topics:
+            top_term_ids = lda_model.get_topic_terms(topic[0])
+            top_terms = [lda_model.id2word[tup[0]] for tup in top_term_ids]
+            relevant_topic_details.append((topic[0], top_terms))
+            print("==>",(topic[0], top_terms))
 
         for word_tuple in doc_as_corpus:
             word_topics = lda_model.get_term_topics(word_tuple[0])
             if word_topics:
-                output_word_topics.append((lda_model.id2word[word_tuple[0]], word_topics))
+                output_word_topics.append((lda_model.id2word[word_tuple[0]], [wt[0] for wt in word_topics]))
 
     output_pred_label = classifier_model.predict(topic_vecs)[0]
 
     output_dict = {'pred_label': output_pred_label,
                    'overall_doc_topics': output_overall_topics,
+                   'relevant_topic_terms': relevant_topic_details,
                    'per_word_topics': output_word_topics}
     print(output_dict)
 
@@ -83,14 +109,13 @@ def main():
     print("finished logistic regression model")
 
     print("loading spacy")
-    # nlp = spacy.load('en_core_web_md')
+    nlp = spacy.load('en_core_web_md')
     print("finished loading spacy")
 
     mbfc_labels, onehot_enc = BiasDetector.load_labels('../data/')
 
     # load up a file, process, then predict.
     # modify this file to something that exists on your machine
-    dummy_file = 'E:/Programming/PyCharmProjects/NewsBiasnessInformationSystem/data/articles/articles/2018-02-01/Addicting Info/Addicting Info--2018-02-01--Donald Trump Jr Likes Fox News Tweet About Spread Of Russian Propaganda'
     PROJ_ROOT = Path(__file__).parent.parent
     articles_dir = (PROJ_ROOT / 'data/articles/articles').resolve()
     save_processed_dir = (PROJ_ROOT / 'data/articles/preprocessed').resolve()
@@ -103,7 +128,7 @@ def main():
     raw_texts = []
     # with nlp.disable_pipes("ner"):
     if True:
-        for date in dates[60:70]:
+        for date in dates[60:61]:
             print(len(documents), len(labels))
             smalltest_dir = (articles_dir / date).resolve()
 
@@ -201,6 +226,7 @@ def main():
     for l in set(mbfc_labels.values()):
         print(l, ':', labels.count(l)/len(labels))
 
+    print(get_json_prediction_output(nlp, lda, GS, DUMMY_TEXT))
 
 if __name__ == "__main__":
     main()
