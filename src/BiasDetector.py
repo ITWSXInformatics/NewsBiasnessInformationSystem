@@ -112,6 +112,9 @@ def train_model(documents, onehot_enc, labels):
     print('number of documents: ', len(documents))
 
     id2word = corpora.Dictionary(documents)
+    print(len(id2word.token2id))
+    id2word.filter_extremes(no_below=5, no_above=0.4)
+    print(len(id2word.token2id))
 
     corpus = [id2word.doc2bow(doc) for doc in documents]
     onehot_labels = onehot_enc.transform(labels)
@@ -128,7 +131,7 @@ def train_model(documents, onehot_enc, labels):
     for topic in lda.show_topics(num_topics=num_topics,
                                  num_words=20):  # print_topics():
         print(topic)
-    lda.save("trained_ldamodel.model")
+    lda.save("trained_ldamodel_filterextremes")
 
     # print("getting topics for testing document")
     # topic_prediction = lda.get_document_topics(bow=corpus[0])
@@ -177,49 +180,74 @@ def load_articles(articles_dir, mbfc_labels):
     print(articles_dir)
 
     # load our spacy model
-    nlp = spacy.load('en_core_web_md')
+    # nlp = spacy.load('en_core_web_md')
 
     # use 10 days as a prototype
     dates = [f for f in Path(articles_dir).iterdir() if f.is_dir()]
 
-    with nlp.disable_pipes("ner"):
-        for date in dates[:60]:  # parsing documents can take a while.
+    save_processed_dir = (PROJ_ROOT / 'data/articles/preprocessed').resolve()
+    # choose whether to use preprocessed data or not for dates
+    dates = [f for f in Path(save_processed_dir).iterdir() if f.is_dir()]
+    # dates = [f for f in Path(articles_dir).iterdir() if f.is_dir()]
+
+
+    # with nlp.disable_pipes("ner"):
+    if True:
+        for date in dates[:60]:  # parsing documents can take a while. training done through [:60]
+            print(len(documents), len(labels))
             smalltest_dir = (articles_dir / date).resolve()
 
             publishers = [f for f in smalltest_dir.iterdir() if f.is_dir()]
+            this_date = date.name
 
+            (save_processed_dir / str(this_date)).mkdir(parents=True, exist_ok=True)
+            thisdate_dir = (save_processed_dir / str(this_date)).resolve()
             for pub_articles in publishers:
                 articles = [f for f in pub_articles.iterdir() if f.is_file()]
                 if articles:
-                    this_publisher = str(
-                        articles[0].parent.relative_to(smalltest_dir))
+                    this_publisher = pub_articles.name
+
                     # print(this_publisher)
                     # skip if no label for publisher
                     if str(this_publisher) not in mbfc_labels.keys():
                         continue
                     else:
+                        (thisdate_dir/str(this_publisher)).mkdir(parents=True, exist_ok=True)
+                        thispublisher_dir = (thisdate_dir/str(this_publisher)).resolve()
                         for article in articles:
-                            text = article.read_text()
-
-                            # save raw text of first document, just for looking at results later
-                            if not testing_text_raw:
-                                testing_text_raw = text
-
-                            text = text.replace("\n", " ")
-
-                            # preprocessing text
-                            lem_text = [token.lemma_.lower() for token in nlp(text)
-                                        if not token.is_stop
-                                        and not token.is_punct
-                                        and not token.is_space
-                                        and not token.lemma_.lower() in STOPWORDS
-                                        and not token.pos_ == 'SYM'
-                                        and not token.pos_ == 'NUM']
-
-                            lem_text += ["_".join(w) for w in ngrams(lem_text, 2)]
-                            # print(lem_text)
-                            documents.append(lem_text)
+                            # comment out next 4 lines if not using preprocessed data
+                            with article.open('r') as f:
+                                text = json.load(f)
+                            documents.append(text)
                             labels.append(mbfc_labels[this_publisher])
+                            # # uncomment below here if not using preprocessed data
+                            # this_article = article.name
+                            #
+                            # text = article.read_text()
+                            #
+                            # text = text.replace("\n", " ")
+                            #
+                            # # # preprocessing text
+                            # lem_text =  [token.lemma_.lower() for token in nlp(text)
+                            #             if not token.is_stop
+                            #             and not token.is_punct
+                            #             and not token.is_space
+                            #             and not token.lemma_.lower() in STOPWORDS
+                            #             and not token.pos_ == 'SYM'
+                            #             and not token.pos_ == 'NUM']
+                            #
+                            # lem_text += ["_".join(w) for w in ngrams(lem_text, 2)]
+                            #
+                            # documents.append(lem_text)
+                            #
+                            # (save_processed_dir/str(this_date)/str(this_publisher)).mkdir(parents=True, exist_ok=True)
+                            # try:
+                            #     with (thispublisher_dir/str(this_article)).open("w+", encoding='utf-8') as proc_f:
+                            #          json.dump(lem_text, proc_f)
+                            # except FileNotFoundError:
+                            #     print("{} wasn't found. ??????????".format((thispublisher_dir/str(this_article))))
+                            #
+                            # labels.append(mbfc_labels[this_publisher])
     return documents, labels
 
 

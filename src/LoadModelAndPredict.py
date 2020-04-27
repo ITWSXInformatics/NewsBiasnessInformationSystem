@@ -7,6 +7,8 @@ from nltk.util import ngrams
 from pathlib import Path
 import BiasDetector
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.externals import joblib
 import json
 
 STOPWORDS = {
@@ -36,8 +38,8 @@ def main():
     print("finished loading lda model")
 
     print("loading logistic regression model")
-    with open(inputs.classifier_model, 'rb') as f:
-        logreg = pickle.load(f)
+    # with open(inputs.classifier_model, 'rb') as f:
+    #     logreg = pickle.load(f)
     print("finished logistic regression model")
 
     print("loading spacy")
@@ -83,12 +85,11 @@ def main():
                         (thisdate_dir/str(this_publisher)).mkdir(parents=True, exist_ok=True)
                         thispublisher_dir = (thisdate_dir/str(this_publisher)).resolve()
                         for article in articles:
-                            # comment out next 4 lines if not using preprocessed data
+                            # # comment out next 4 lines if not using preprocessed data
                             with article.open('r') as f:
                                 text = json.load(f)
                             documents.append(text)
                             labels.append(mbfc_labels[this_publisher])
-
                             # # uncomment below here if not using preprocessed data
                             # this_article = article.name
                             #
@@ -120,13 +121,20 @@ def main():
 
     corpus = [id2word.doc2bow(doc) for doc in documents]
     topic_vecs = []
+    has_topic_count = 0
     for doc_as_corpus in corpus:
         top_topics = lda.get_document_topics(doc_as_corpus,
                                              minimum_probability=0)
         topic_vec = [top_topics[i][1] for i in range(lda.num_topics)]
         topic_vecs.append(topic_vec)#.reshape(1, -1))
+        # print("----------")
+        # print("document topics: ", lda.get_document_topics(doc_as_corpus))
+        # #print(doc_as_corpus)
         # for word in doc_as_corpus:
-        #     print(id2word[word[0]], lda.get_term_topics(word[0]))
+        #     topics = lda.get_term_topics(word[0])
+        #     if topics:
+        #         has_topic_count += 1
+        #         print(id2word[word[0]], topics)
 
     # for i in range(len(topic_vecs)):
     #     #print(raw_texts[i])
@@ -137,92 +145,31 @@ def main():
     for topic in lda.show_topics(num_topics=lda.num_topics,
                                  num_words=15):  # print_topics():
         print(topic)
-    with open('../saved_models/trained_ExtraTree_model_boostrap_minsamplesleaf5_entropy.pkl', 'rb') as f:
-        model = pickle.load(f)
+    print("starting gridsearch")
+    # params = {'n_estimators': [110],
+    #      'max_depth':[None, 10],
+    #           'criterion':['gini', 'entropy'],
+    #           'min_samples_leaf': [1, 2, 5],
+    #           'min_samples_split': [2,5,10],
+    #           'max_features':['auto', 10, 20, 40],
+    #           'bootstrap':[True],
+    #           'class_weight': ['balanced']}
+    # ETC = ExtraTreesClassifier()
+    # GS = GridSearchCV(ETC, params, n_jobs=2)
+    # GS.fit(topic_vecs, labels)
+    #
+    # joblib.dump(GS.best_estimator_, '../saved_models/gridsearch_extratrees_bestmodel_paramsv2_filterextremes.pkl')
+    # print(GS.cv_results_)
+    print("loading saved gridsearch model")
+    GS = joblib.load('../saved_models/gridsearch_extratrees_bestmodel_paramsv2_filterextremes.pkl') #_paramsv2
+    print(GS.get_params())
+    pred_labels = GS.predict(topic_vecs)
+    BiasDetector.predict_bias(GS, topic_vecs, labels)
 
-    pred_labels = model.predict(topic_vecs)
-    BiasDetector.predict_bias(model, topic_vecs, labels)
+    # print(pred_labels, labels)
 
-    # print("0")
-    # new_model = RandomForestClassifier(max_depth=10, max_features=None, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_RFC_model_maxdepth10_maxfeaturesnone.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("1")
-    # new_model = RandomForestClassifier(max_depth=5, max_features='auto', n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_RFC_model_maxdepth5_maxfeaturesauto.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("2")
-    # new_model = RandomForestClassifier(max_depth=10, max_features='auto', n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_RFC_model_maxdepth10_maxfeaturesauto.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("3")
-    # new_model = RandomForestClassifier(max_depth=5, max_features=10, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_RFC_model_maxdepth5_maxfeatures10.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("4")
-    # new_model = ExtraTreesClassifier(max_depth=5, min_samples_leaf=10, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_maxdepth5_minsamplesleaf10.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("5")
-    # new_model = ExtraTreesClassifier(max_depth=10, min_samples_leaf=10, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_maxdepth10_minsamplesleaf10.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("6")
-    # new_model = ExtraTreesClassifier(max_depth=10, min_samples_leaf=5, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_maxdepth10_minsamplesleaf5.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    # print("7")
-    # new_model = ExtraTreesClassifier(max_features='auto', bootstrap=True, min_samples_leaf=5, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_bootstrap_minsamplesleaf5.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # print("8")
-    # new_model = ExtraTreesClassifier(max_features='auto', bootstrap=True, min_samples_leaf=5, n_estimators=100, class_weight='balanced', criterion='entropy').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_boostrap_minsamplesleaf5_entropy.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
-    #
-    # print("9")
-    # new_model = ExtraTreesClassifier(max_features='auto', bootstrap=True, n_estimators=100, class_weight='balanced').fit(topic_vecs, labels) #trained on [:60]
-    #
-    # with open('../saved_models/trained_ExtraTree_model_bootstrap.pkl', 'wb') as f:
-    #     pickle.dump(new_model, f)
-    # pred_labels = new_model.predict(topic_vecs)
-    #
-    # BiasDetector.predict_bias(new_model, topic_vecs, labels)
+    for l in set(mbfc_labels.values()):
+        print(l, ':', labels.count(l)/len(labels))
 
 
 if __name__ == "__main__":
