@@ -63,7 +63,7 @@ def main():
     raw_texts = []
     # with nlp.disable_pipes("ner"):
     if True:
-        for date in dates[60:70]:#dates[:60]:  # parsing documents can take a while. training done through [:60]
+        for date in dates[:60]:
             print(len(documents), len(labels))
             smalltest_dir = (articles_dir / date).resolve()
 
@@ -126,15 +126,7 @@ def main():
         top_topics = lda.get_document_topics(doc_as_corpus,
                                              minimum_probability=0)
         topic_vec = [top_topics[i][1] for i in range(lda.num_topics)]
-        topic_vecs.append(topic_vec)#.reshape(1, -1))
-        # print("----------")
-        # print("document topics: ", lda.get_document_topics(doc_as_corpus))
-        # #print(doc_as_corpus)
-        # for word in doc_as_corpus:
-        #     topics = lda.get_term_topics(word[0])
-        #     if topics:
-        #         has_topic_count += 1
-        #         print(id2word[word[0]], topics)
+        topic_vecs.append(topic_vec)
 
     # for i in range(len(topic_vecs)):
     #     #print(raw_texts[i])
@@ -158,15 +150,13 @@ def main():
     # GS = GridSearchCV(ETC, params, n_jobs=2)
     # GS.fit(topic_vecs, labels)
     #
-    # joblib.dump(GS.best_estimator_, '../saved_models/gridsearch_extratrees_bestmodel_paramsv2_filterextremes.pkl')
+    # joblib.dump(GS.best_estimator_, 'gridsearch_extratrees_bestmodel_paramsv2_filterextremes.pkl')
     # print(GS.cv_results_)
     print("loading saved gridsearch model")
-    GS = joblib.load('../saved_models/gridsearch_extratrees_bestmodel_paramsv2_filterextremes.pkl') #_paramsv2
+    GS = joblib.load(inputs.classifier_model) #_paramsv2
     print(GS.get_params())
     pred_labels = GS.predict(topic_vecs)
     BiasDetector.predict_bias(GS, topic_vecs, labels)
-
-    # print(pred_labels, labels)
 
     for l in set(mbfc_labels.values()):
         print(l, ':', labels.count(l)/len(labels))
@@ -175,25 +165,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-"""
-
-0
-accuracy on training data:  0.4962224023275393
-1
-accuracy on training data:  0.2936234498922573
-2
-accuracy on training data:  0.5413597100467187
-3
-accuracy on training data:  0.2891795972620253
-4
-accuracy on training data:  0.2452928005483607
-5
-accuracy on training data:  0.30321583839316874
-6
-accuracy on training data:  0.33232247964733097
-7
-accuracy on training data:  0.32341255562835003
-8
-accuracy on training data:  0.3598775280932731
-"""
