@@ -130,7 +130,7 @@ def train_model(documents, onehot_enc, labels, hyperparams=None):
 
     if filter_extremes:
         # dynamically filter out unnecessary words (similar to stop words)
-        id2word.filter_extremes(no_below=5, no_above=0.4)#, keep_n=10000)
+        id2word.filter_extremes(no_below=50, no_above=0.7)#, keep_n=10000)
 
     corpus = [id2word.doc2bow(doc) for doc in documents]
     onehot_labels = onehot_enc.transform(labels)
@@ -449,7 +449,7 @@ def main():
     elif inputs.load is not None:
 
         files = [f for f in os.listdir(inputs.load) if os.path.isfile(os.path.join(inputs.load, f))]
-
+        pdb.set_trace()
         lda_model_path = None
         logreg_model_path = None
         for file in files:
